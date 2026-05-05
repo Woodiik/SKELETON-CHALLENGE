@@ -1,60 +1,84 @@
 /**
- * HTTP Server Settings
- * (sails.config.http)
+ * HTTP server settings (sails.config.http)
  *
- * Configuration for the underlying HTTP server in Sails.
- * (for additional recommended settings, see `config/env/production.js`)
- *
- * For more information on configuration, check out:
  * https://sailsjs.com/config/http
  */
 
-module.exports.http = {
+const path = require('path');
+const fs = require('fs');
+const serveStatic = require('serve-static');
 
-  /****************************************************************************
-  *                                                                           *
-  * Sails/Express middleware to run for every HTTP request.                   *
-  * (Only applies to HTTP requests -- not virtual WebSocket requests.)        *
-  *                                                                           *
-  * https://sailsjs.com/documentation/concepts/middleware                     *
-  *                                                                           *
-  ****************************************************************************/
+const distRoot = path.resolve(__dirname, '..', 'assets', 'dist');
+
+// Vite emits a manifest at `assets/dist/.vite/manifest.json` with hashed
+// filenames per entry. The layout reads it through `res.locals.viteAsset`
+// to build the correct <script>/<link> tags for whatever the last build produced.
+let cachedManifest = null;
+function readManifest() {
+  if (process.env.NODE_ENV === 'production' && cachedManifest) {
+    return cachedManifest;
+  }
+  try {
+    const raw = fs.readFileSync(path.join(distRoot, '.vite', 'manifest.json'), 'utf8');
+    cachedManifest = JSON.parse(raw);
+    return cachedManifest;
+  } catch (err) {
+    return {};
+  }
+}
+
+const distStatic = serveStatic(distRoot, {
+  index: false,
+  immutable: true,
+  maxAge: '1y'
+});
+
+module.exports.http = {
 
   middleware: {
 
-    /***************************************************************************
-    *                                                                          *
-    * The order in which middleware should be run for HTTP requests.           *
-    * (This Sails app's routes are handled by the "router" middleware below.)  *
-    *                                                                          *
-    ***************************************************************************/
+    order: [
+      'cookieParser',
+      'session',
+      'bodyParser',
+      'compress',
+      'poweredBy',
+      'viteLocals',
+      'distStatic',
+      'router',
+      'www',
+      'favicon'
+    ],
 
-    // order: [
-    //   'cookieParser',
-    //   'session',
-    //   'bodyParser',
-    //   'compress',
-    //   'poweredBy',
-    //   'router',
-    //   'www',
-    //   'favicon',
-    // ],
+    distStatic: function(req, res, next) {
+      if (!req.url.startsWith('/dist/')) return next();
+      const original = req.url;
+      req.url = req.url.replace(/^\/dist/, '') || '/';
+      distStatic(req, res, function(err) {
+        req.url = original;
+        next(err);
+      });
+    },
 
+    viteLocals: function(req, res, next) {
+      const manifest = readManifest();
+      res.locals.viteAsset = function(entryKey) {
+        const chunk = manifest[entryKey];
+        if (!chunk) {
+          return '<!-- vite manifest is missing; run `npm --prefix frontend run build` -->';
+        }
+        let html = '';
+        if (Array.isArray(chunk.css)) {
+          for (const href of chunk.css) {
+            html += `<link rel="stylesheet" href="/dist/${href}">`;
+          }
+        }
+        html += `<script type="module" src="/dist/${chunk.file}"></script>`;
+        return html;
+      };
+      next();
+    }
 
-    /***************************************************************************
-    *                                                                          *
-    * The body parser that will handle incoming multipart HTTP requests.       *
-    *                                                                          *
-    * https://sailsjs.com/config/http#?customizing-the-body-parser             *
-    *                                                                          *
-    ***************************************************************************/
-
-    // bodyParser: (function _configureBodyParser(){
-    //   var skipper = require('skipper');
-    //   var middlewareFn = skipper({ strict: true });
-    //   return middlewareFn;
-    // })(),
-
-  },
+  }
 
 };

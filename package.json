@@ -4,14 +4,13 @@
   "version": "0.1.0",
   "description": "Vue + Sails.js blog with JWT auth, SSR for the first page and CSR for the rest.",
   "dependencies": {
+    "@sailshq/connect-redis": "^6.1.3",
+    "@sailshq/lodash": "^3.10.6",
+    "@sailshq/socket.io-redis": "^6.1.2",
     "sails": "^1.5.17",
-    "grunt": "1.0.4",
-    "sails-hook-grunt": "^5.0.0",
     "sails-hook-orm": "^4.0.3",
     "sails-hook-sockets": "^3.0.0",
-    "@sailshq/connect-redis": "^6.1.3",
-    "@sailshq/socket.io-redis": "^6.1.2",
-    "@sailshq/lodash": "^3.10.6"
+    "serve-static": "^2.2.1"
   },
   "devDependencies": {
     "eslint": "5.16.0"
@@ -19,6 +18,8 @@
   "scripts": {
     "start": "NODE_ENV=production node app.js",
     "dev": "node app.js",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm run build:frontend",
     "lint": "./node_modules/eslint/bin/eslint.js . --max-warnings=0 --report-unused-disable-directives"
   },
   "main": "app.js",
