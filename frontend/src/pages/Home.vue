@@ -4,7 +4,9 @@
 </script>
 
 <template>
-  <section>
-    <p>Posts list (CSR part) — coming next.</p>
+  <section class="mx-auto max-w-3xl p-6">
+    <p class="rounded-md border border-slate-200 bg-white p-4 text-slate-600 shadow-sm">
+      Posts list (CSR part) &mdash; coming next.
+    </p>
   </section>
 </template>

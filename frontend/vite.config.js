@@ -1,12 +1,13 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import tailwind from '@tailwindcss/vite';
 import { fileURLToPath, URL } from 'node:url';
 
 // Vite outputs the bundle into the Sails `assets/dist` folder.
-// Sails will serve it as static and the EJS layout reads `manifest.json`
-// to inject the right hashed file names.
+// Sails serves it statically and the EJS layout reads `manifest.json`
+// to pick up the right hashed file names per build.
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue(), tailwind()],
   build: {
     outDir: '../assets/dist',
     emptyOutDir: true,
