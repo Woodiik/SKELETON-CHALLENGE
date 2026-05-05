@@ -1,9 +1,8 @@
 {
-  "name": "sails-init",
+  "name": "skeleton-challenge",
   "private": true,
-  "version": "0.0.0",
-  "description": "a Sails application",
-  "keywords": [],
+  "version": "0.1.0",
+  "description": "Vue + Sails.js blog with JWT auth, SSR for the first page and CSR for the rest.",
   "dependencies": {
     "sails": "^1.5.17",
     "grunt": "1.0.4",
@@ -19,18 +18,15 @@
   },
   "scripts": {
     "start": "NODE_ENV=production node app.js",
-    "test": "npm run lint && npm run custom-tests && echo 'Done.'",
-    "lint": "./node_modules/eslint/bin/eslint.js . --max-warnings=0 --report-unused-disable-directives && echo '✔  Your .js files look good.'",
-    "custom-tests": "echo \"(No other custom tests yet.)\" && echo"
+    "dev": "node app.js",
+    "lint": "./node_modules/eslint/bin/eslint.js . --max-warnings=0 --report-unused-disable-directives"
   },
   "main": "app.js",
   "repository": {
     "type": "git",
-    "url": "git://github.com/anonymous node/sails user/sails-init.git"
+    "url": "https://github.com/Woodiik/SKELETON-CHALLENGE.git"
   },
-  "author": "anonymous node/sails user",
-  "license": "",
   "engines": {
-    "node": "^22.22"
+    "node": "^22"
   }
 }
