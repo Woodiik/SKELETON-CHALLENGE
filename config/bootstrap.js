@@ -22,7 +22,7 @@ const SAMPLE_POSTS = [
   { title: 'JWT, briefly',
     body: 'Sessions would have been simpler. We went with JWT because the task asked for it and because it lets the API stay stateless if it ever grows past the blog.' },
   { title: 'On password resets',
-    body: 'The reset email goes through Ethereal — no real SMTP creds needed. The preview URL is also logged so anyone can click through without an inbox.' },
+    body: 'The reset flow uses Nodemailer. With real SMTP creds (SendGrid here) it sends actual mail; without them, it falls back to a one-off Ethereal account and logs the preview URL.' },
   { title: 'Soft delete, kept honest',
     body: 'Posts have a deletedAt timestamp instead of a real DELETE. The list endpoint filters where deletedAt is null. We kept that explicit instead of hiding it in the model.' },
   { title: 'Tailwind v4 first impressions',
@@ -34,7 +34,15 @@ const SAMPLE_POSTS = [
   { title: 'Pagination, the boring way',
     body: 'limit + skip, sorted by createdAt desc. There are fancier cursor-based approaches but for ~100 posts a page-and-perPage will do.' },
   { title: 'What I would do next',
-    body: 'Tests, a small admin view, maybe Markdown for post bodies, and a refresh-token rotation on the JWT side. Out of scope for the test, but listed here as TODOs.' }
+    body: 'Tests, a small admin view, maybe Markdown for post bodies, and a refresh-token rotation on the JWT side. Out of scope for the test, but listed here as TODOs.' },
+  { title: 'Why bother with email verification',
+    body: 'Verifying email addresses keeps the user list real and lets us ship transactional mail (resets, notifications) without bouncing. The flow here issues a one-time token on signup and exchanges it for a verifiedAt timestamp.' },
+  { title: 'Cookies vs localStorage for the JWT',
+    body: 'localStorage is the simplest place to keep a token, but anything running on the page can read it. An httpOnly cookie with SameSite=Lax avoids that — JS never sees the value, the browser ships it on every same-origin request.' },
+  { title: 'Tiny things matter',
+    body: 'Pre-checking a reset token before showing the form, custom confirm dialogs, optimistic UI for new comments — none of this is in the spec, but the gap between "works" and "feels right" lives in these.' },
+  { title: 'Closing thoughts',
+    body: 'A blog is a deceptively easy task: half a day for the happy paths, another day for the edges. The interesting bits ended up being the SSR + CSR split, the manifest-driven asset wiring, and the auth UX.' }
 ];
 
 const SAMPLE_COMMENTS = [

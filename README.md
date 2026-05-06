@@ -87,6 +87,14 @@ frontend/             Vue 3 + Vite project with its own package.json
 
 `GET /` is the only fully server-rendered page. Sails fetches the first 10 posts and renders them inline through `views/pages/homepage.ejs`. The same page contains a `<div id="more-posts" data-start-page="2">` placeholder; the Vue `LoadMorePosts` component mounts there and pulls subsequent pages from `/api/v1/posts?page=2`.
 
+### How to verify it in 30 seconds
+
+The dev seed creates 16 posts on the first lift, so there's always a CSR tail to load.
+
+1. Open `http://localhost:1337/` and view source (or use DevTools → Network → click the document request → Response). The HTML already contains 10 `<article>` blocks with real titles and bodies — that's the SSR part, no JavaScript needed.
+2. Disable JavaScript in DevTools (`Ctrl+Shift+P → Disable JavaScript`) and reload. The same 10 posts are still there. With JS off, the "Load more posts" button is inert — that's the CSR part not running.
+3. Re-enable JS, reload, click "Load more posts". DevTools → Network shows a `GET /api/v1/posts?page=2&perPage=10` request, and 6 more posts get appended below the original 10 without a full page reload. That's the CSR part doing its job.
+
 All other UI routes (`/login`, `/signup`, `/posts/:id`, `/posts/new`, `/posts/:id/edit`, …) are SPA routes — Sails serves a small shell (`views/pages/spa.ejs`) and Vue Router takes over.
 
 The site header is a separate Vue mini-app mounted on every page so the auth state stays consistent regardless of how the page got rendered.
@@ -110,7 +118,7 @@ All endpoints live under `/api/v1`. JSON in, JSON out. Auth uses `Authorization:
 
 ## Assumptions
 
-- Password reset emails go through [Ethereal](https://ethereal.email). If `SMTP_USER`/`SMTP_PASS` aren't set, the helper spins up a throwaway Ethereal account on the first send and logs the credentials so they can be reused. The reset link is also printed to the server console — a reviewer can exercise the flow without ever opening an inbox.
+- Password reset emails go through whatever SMTP relay you point the app at. The `.env.example` is set up for SendGrid; if `SMTP_USER`/`SMTP_PASS` are left empty the helper falls back to a throwaway [Ethereal](https://ethereal.email) account and logs the preview URL. Either way, the reset link is also printed to the server console so the flow can be exercised without ever opening an inbox.
 - Soft delete is a `deletedAt` timestamp. Listing endpoints filter `deletedAt: null` explicitly; this is kept visible in the controllers rather than hidden in the model.
 - The default Sails Grunt asset pipeline was dropped — Vite handles all frontend bundling. A small static middleware in `config/http.js` mounts `assets/dist/` at `/dist/` and exposes `viteAsset(entry)` to EJS so the layout can pick up the right hashed filenames from the Vite manifest.
 - Authentication is JWT. Sails' built-in session config is still present (Sails wants a session secret to lift) but no session-backed user state is used.
