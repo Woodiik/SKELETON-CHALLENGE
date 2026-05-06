@@ -36,7 +36,7 @@ module.exports = {
       const baseUrl = process.env.APP_URL || `http://localhost:${sails.config.port || 1337}`;
       const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
-      await sails.helpers.sendResetEmail({
+      await sails.helpers.sendResetEmail.with({
         to: user.email,
         fullName: user.fullName,
         resetUrl
