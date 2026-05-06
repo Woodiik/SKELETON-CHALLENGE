@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: skeleton-challenge-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: blog
+      POSTGRES_PASSWORD: blog
+      POSTGRES_DB: skeleton_challenge
+    ports:
+      - "5433:5432"
+    volumes:
+      - skeleton-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U blog -d skeleton_challenge" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  skeleton-pg-data:
