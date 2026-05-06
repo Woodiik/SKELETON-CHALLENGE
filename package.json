@@ -11,6 +11,7 @@
     "sails": "^1.5.17",
     "sails-hook-orm": "^4.0.3",
     "sails-hook-sockets": "^3.0.0",
+    "sails-postgresql": "^5.0.1",
     "serve-static": "^2.2.1"
   },
   "devDependencies": {
