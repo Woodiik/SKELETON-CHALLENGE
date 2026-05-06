@@ -51,6 +51,10 @@ export const useAuthStore = defineStore('auth', {
       await api.post('/auth/reset-password', payload);
     },
 
+    async checkResetToken(token) {
+      await api.get('/auth/check-reset-token', { params: { token } });
+    },
+
     logout() {
       this._setSession({ token: null, user: null });
     },
