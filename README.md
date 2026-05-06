@@ -1,151 +1,130 @@
 # Skeleton Challenge — Vue + Sails.js blog
 
-A small blog application built for the test task. Vue 3 on the frontend, Sails.js + PostgreSQL on the backend, JWT auth, posts with comments and soft delete. The home page renders the first 10 posts on the server (EJS); anything past that is fetched and rendered by a Vue component.
+A small blog built for the test task. Vue 3 on the frontend, Sails.js + PostgreSQL on the backend. The home page renders the first 10 posts on the server through EJS; everything past that is fetched and rendered by a Vue component on the client. Auth uses JWT in an httpOnly cookie.
 
 ## Stack
 
-- **Backend** — Sails.js 1.5, PostgreSQL via Waterline, Sails actions2 for controllers/helpers
-- **Frontend** — Vue 3 (Composition API + `<script setup>`), Vue Router, Pinia, Tailwind CSS v4, Vite 5
-- **Auth** — JWT in an httpOnly `SameSite=Lax` cookie (Bearer header still accepted as a fallback for API clients), bcrypt for hashing, `passwordChangedAt` invalidates tokens issued before a reset
-- **Mail** — Nodemailer with SMTP from env (SendGrid by default in `.env.example`); falls back to a one-off Ethereal account when SMTP creds are missing, so the flows always work locally
+- **Backend** — Sails.js 1.5, Waterline + PostgreSQL, actions2-style controllers and helpers
+- **Frontend** — Vue 3 (`<script setup>`), Vue Router, Pinia, Tailwind CSS v4, Vite 5
+- **Auth** — JWT in an httpOnly `SameSite=Lax` cookie, bcrypt for hashes; `Authorization: Bearer` is still accepted as a fallback for API clients
+- **Mail** — Nodemailer; reads SMTP config from env, falls back to a throwaway [Ethereal](https://ethereal.email) account when no credentials are set
 
 ## Running locally
 
-Requires Node 22+ and a running PostgreSQL.
+Needs Node 22+ and a Postgres reachable at `DATABASE_URL`. The simplest path is the `docker-compose.yml` in the repo, which runs Postgres on host port `5433` to avoid clashing with anything already on `5432`.
 
 ```bash
-# create the database (one-off, name can match what's in DATABASE_URL)
-createdb skeleton_challenge
-
-# install deps (root + frontend)
+# install deps (root + frontend live in separate package.json)
 npm install
 npm --prefix frontend install
 
-# copy the env template and edit values
+# start postgres (or point .env at your own)
+docker compose up -d
+
+# env (the example defaults to Ethereal, which works without any setup)
 cp .env.example .env
 
-# build the frontend bundle (outputs into assets/dist with a manifest)
+# build the Vue bundle into assets/dist
 npm run build
 
-# start sails
+# lift sails
 npm run dev
 ```
 
-Then open `http://localhost:1337`.
+The first lift runs `config/bootstrap.js`, which creates two users and 16 posts so the home page actually has content to render and pagination has more than one page. Set `SC_SKIP_SEED=true` to skip it; in production it's a no-op anyway.
 
-On the first lift the dev seed (`config/bootstrap.js`) creates two users and ~12 posts so the home page has content. To skip the seed, set `SC_SKIP_SEED=true`. To wipe and reseed, drop and recreate the database.
+```
+ada@example.com    /  password123
+grace@example.com  /  password123
+```
 
-### Frontend during development
-
-For frontend with auto-rebuild while you edit Vue files, run this in a second terminal — it keeps `assets/dist/` fresh:
+For frontend changes during development, run the Vite watcher in a second terminal — Sails reads the manifest fresh on each request, so no Sails restart is needed:
 
 ```bash
 npm --prefix frontend run build -- --watch
 ```
 
-Sails picks up the new bundle on each request through the manifest, no Sails restart needed.
+## How SSR + CSR fit together
 
-### Demo credentials
+`GET /` is the only fully server-rendered page. The home controller fetches the first 10 posts and renders them inline through `views/pages/homepage.ejs`. The same page emits a `<div id="more-posts" data-start-page="2">` placeholder; the Vue `LoadMorePosts` component mounts there and pulls subsequent pages from `/api/v1/posts?page=2`.
 
-After the seed runs:
+Every other UI route (`/login`, `/signup`, `/posts/:id`, `/posts/new`, `/posts/:id/edit`, `/verify-email`, `/reset-password`, `/forgot-password`) goes through a small SPA shell — `views/pages/spa.ejs` — and Vue Router takes over from there.
 
-```
-ada@example.com   /  password123
-grace@example.com /  password123
-```
+The site header and the email-verification banner are mounted as their own tiny Vue apps on a div in the layout, so the auth state is consistent regardless of whether the underlying page came from EJS or the SPA shell. Pinia is initialised once and shared across all roots on the page.
+
+### Verifying the SSR/CSR split in 30 seconds
+
+The seed creates 16 posts, so there's always six waiting in the CSR tail.
+
+1. Open `http://localhost:1337/` and view source — the HTML already contains 10 `<article>` blocks with real titles and bodies. That's SSR; no JS needed.
+2. Disable JavaScript in DevTools (`Ctrl+Shift+P → Disable JavaScript`) and reload. The same 10 posts are there. The "Load more posts" button is inert because Vue isn't running.
+3. Turn JS back on, click "Load more posts". Network shows `GET /api/v1/posts?page=2&perPage=10`; six more posts get appended without reloading the page.
 
 ## Project layout
 
 ```
 api/
   controllers/
-    auth/             signup, login, logout, me, forgot-password, reset-password,
-                      check-reset-token, verify-email, check-verification-token,
-                      resend-verification
+    auth/             signup, login, logout, me, forgot/reset password,
+                      verify/resend verification, plus the matching pre-flight
+                      checks used by the frontend pages
     posts/            list, get, create, update, destroy (soft delete)
     comments/         create
-    pages/            home (renders first 10 posts via EJS)
-  helpers/            hash-password, check-password, jwt-sign, jwt-verify,
-                      get-mailer, send-reset-email, send-verification-email,
-                      issue-verification-token
+    pages/            home (renders the SSR first page)
+  helpers/            password hashing, jwt sign/verify, mailer + the two
+                      send-* helpers, issue-verification-token
   models/             User, Post, Comment, PasswordResetToken, EmailVerificationToken
   policies/           is-authenticated
-  util/               auth-cookie (set/clear/read helpers for the JWT cookie)
+  util/               auth-cookie helpers (set/clear/read)
 config/               sails config (routes, datastores, http, models, …)
 views/
-  layouts/layout.ejs  shared layout, loads the Vite bundle from manifest
+  layouts/layout.ejs  shared layout, loads the Vite bundle through the manifest
   pages/homepage.ejs  SSR home (first 10 posts)
-  pages/spa.ejs       shell for SPA routes (login/signup/posts/verify-email/...)
-assets/
-  dist/               vite build output, gitignored
+  pages/spa.ejs       shell for SPA routes
+assets/dist/          vite build output, gitignored
 frontend/             Vue 3 + Vite project with its own package.json
   src/
-    pages/            Login, Signup, ForgotPassword, ResetPassword,
-                      VerifyEmail, Post, PostEditor
+    pages/            Login, Signup, Forgot/ResetPassword, VerifyEmail,
+                      Post, PostEditor
     components/       SiteHeader, VerifyBanner, PostCard, LoadMorePosts,
                       ConfirmDialog, ToastHost
     stores/           auth, toasts (Pinia)
     api/              axios client (cookies via withCredentials)
     router/           Vue Router (history mode)
-    styles/app.css    Tailwind entry + small set of `@apply` utility classes
+    styles/app.css    Tailwind entry + a few @apply utility shortcuts
 ```
-
-## How SSR + CSR fit together
-
-`GET /` is the only fully server-rendered page. Sails fetches the first 10 posts and renders them inline through `views/pages/homepage.ejs`. The same page contains a `<div id="more-posts" data-start-page="2">` placeholder; the Vue `LoadMorePosts` component mounts there and pulls subsequent pages from `/api/v1/posts?page=2`.
-
-### How to verify it in 30 seconds
-
-The dev seed creates 16 posts on the first lift, so there's always a CSR tail to load.
-
-1. Open `http://localhost:1337/` and view source (or use DevTools → Network → click the document request → Response). The HTML already contains 10 `<article>` blocks with real titles and bodies — that's the SSR part, no JavaScript needed.
-2. Disable JavaScript in DevTools (`Ctrl+Shift+P → Disable JavaScript`) and reload. The same 10 posts are still there. With JS off, the "Load more posts" button is inert — that's the CSR part not running.
-3. Re-enable JS, reload, click "Load more posts". DevTools → Network shows a `GET /api/v1/posts?page=2&perPage=10` request, and 6 more posts get appended below the original 10 without a full page reload. That's the CSR part doing its job.
-
-All other UI routes (`/login`, `/signup`, `/posts/:id`, `/posts/new`, `/posts/:id/edit`, …) are SPA routes — Sails serves a small shell (`views/pages/spa.ejs`) and Vue Router takes over.
-
-The site header is a separate Vue mini-app mounted on every page so the auth state stays consistent regardless of how the page got rendered.
 
 ## API
 
-All endpoints live under `/api/v1`. JSON in, JSON out. Auth uses `Authorization: Bearer <jwt>`.
+All endpoints live under `/api/v1`. JSON in, JSON out. Authenticated routes read the JWT from the `sc_token` cookie first; an `Authorization: Bearer …` header is accepted as a fallback so the API can be poked from curl/Postman without juggling cookies.
 
-| Method | Path | Auth | Notes |
-|---|---|---|---|
-| POST | `/auth/signup` | – | `{ email, password, fullName }` → `{ user }`; sets `sc_token` cookie; sends a verification email |
-| POST | `/auth/login` | – | `{ email, password }` → `{ user }`; sets `sc_token` cookie |
-| POST | `/auth/logout` | – | clears the `sc_token` cookie; idempotent |
-| GET  | `/auth/me` | yes | returns the authenticated user (handy after server-side state changes) |
-| POST | `/auth/forgot-password` | – | always 200 (no user enumeration) |
-| GET  | `/auth/check-reset-token` | – | pre-flight used by the reset page; 200 valid / 400 used-or-expired |
-| POST | `/auth/reset-password` | – | `{ token, password }`; bumps `passwordChangedAt` so older JWTs go stale |
-| GET  | `/auth/check-verification-token` | – | pre-flight used by the verify page |
-| POST | `/auth/verify-email` | – | `{ token }`; flips `verifiedAt` on the user |
-| POST | `/auth/resend-verification` | yes | re-issues a verification token + emails it; idempotent if already verified |
-| GET  | `/posts` | – | `?page=1&perPage=10` |
-| GET  | `/posts/:id` | – | post + comments (with authors) |
-| POST | `/posts` | yes | `{ title, body }` |
-| PATCH | `/posts/:id` | yes (author) | `{ title?, body? }` |
-| DELETE | `/posts/:id` | yes (author) | soft delete (sets `deletedAt`) |
-| POST | `/posts/:postId/comments` | yes | `{ body }` |
+| Method | Path                             | Auth         | Notes                                                                                              |
+| ------ | -------------------------------- | ------------ | -------------------------------------------------------------------------------------------------- |
+| POST   | `/auth/signup`                   | –            | `{ email, password, fullName }` → `{ user }`. Sets the auth cookie. A verification email goes out. |
+| POST   | `/auth/login`                    | –            | `{ email, password }` → `{ user }`. Sets the auth cookie.                                          |
+| POST   | `/auth/logout`                   | –            | Clears the cookie. Safe to call when not signed in.                                                |
+| GET    | `/auth/me`                       | yes          | Returns the authenticated user. Used by the SPA on boot to confirm the cookie is still alive.      |
+| POST   | `/auth/forgot-password`          | –            | Always 200, regardless of whether the email exists, so an attacker can't enumerate accounts.       |
+| GET    | `/auth/check-reset-token`        | –            | Pre-flight used by the reset page so used/expired links say so up front.                           |
+| POST   | `/auth/reset-password`           | –            | `{ token, password }`. Bumps `passwordChangedAt`, which invalidates older JWTs.                    |
+| GET    | `/auth/check-verification-token` | –            | Same idea, for the verify page.                                                                    |
+| POST   | `/auth/verify-email`             | –            | `{ token }`. Sets `verifiedAt` on the user.                                                        |
+| POST   | `/auth/resend-verification`      | yes          | Issues a fresh verification token and emails it. No-op for already-verified accounts.              |
+| GET    | `/posts`                         | –            | `?page=1&perPage=10`. Filters out soft-deleted posts. Newest first.                                |
+| GET    | `/posts/:id`                     | –            | Post with author and comments (each comment with its author).                                      |
+| POST   | `/posts`                         | yes          | `{ title, body }`                                                                                  |
+| PATCH  | `/posts/:id`                     | yes (author) | `{ title?, body? }`                                                                                |
+| DELETE | `/posts/:id`                     | yes (author) | Soft delete (sets `deletedAt`).                                                                    |
+| POST   | `/posts/:postId/comments`        | yes          | `{ body }`                                                                                         |
 
-## Assumptions
+## Notes on a few decisions
 
-- **Auth cookie.** The JWT lives in an httpOnly `SameSite=Lax` cookie (`sc_token`). JS can't read it, so an XSS leak can't exfiltrate the token, and `SameSite=Lax` blocks cross-site POST/PATCH/DELETE — basic CSRF protection without a separate token. The `Authorization: Bearer …` header is still accepted as a fallback for API clients (Postman, curl).
-- **JWT invalidation.** `User.passwordChangedAt` is bumped on every password reset. Tokens issued before that timestamp are rejected by the auth policy, so a reset effectively kicks all existing sessions.
-- **Email verification** is non-blocking: a freshly-signed-up account can still browse and write posts, but a top-of-page banner nudges them to verify until they do. The verification email is best-effort — failing to deliver it doesn't fail the signup.
-- **Mail relay.** `.env.example` is set up for SendGrid; with `SMTP_USER`/`SMTP_PASS` left empty, the helper falls back to a throwaway [Ethereal](https://ethereal.email) account and logs the preview URL. The reset/verification links are also printed to the server console so the flows can be exercised without ever opening an inbox.
-- **Soft delete** is a `deletedAt` timestamp. Listing endpoints filter `deletedAt: null` explicitly; this is kept visible in the controllers rather than hidden in the model.
-- **Asset pipeline.** The default Sails Grunt asset pipeline was dropped — Vite handles all frontend bundling. A small static middleware in `config/http.js` mounts `assets/dist/` at `/dist/` and exposes `viteAsset(entry)` to EJS so the layout can pick up the right hashed filenames from the Vite manifest.
-- **Sessions.** Sails' built-in session config is still present (Sails wants a session secret to lift) but no session-backed user state is used.
-- **Dev seed** runs on every lift if the DB is empty. In production it's a no-op. To skip it on demand, set `SC_SKIP_SEED=true`.
-- **Editing/deleting comments** is not part of the task and isn't implemented. Only post-level edit/soft-delete (author-scoped).
+**JWT in an httpOnly cookie, not localStorage.** Anything running on the page can read localStorage; an httpOnly cookie can't be touched by JS at all, so an XSS leak can't exfiltrate the token. With `SameSite=Lax`, cross-site POST/PATCH/DELETE don't carry the cookie either, which covers the common CSRF case without a separate anti-forgery token. The Bearer header is still accepted so the API stays curl-able.
 
-## What I'd do next, given more time
+**Password reset invalidates old sessions.** The user has a `passwordChangedAt` timestamp; the auth policy rejects any JWT whose `iat` is older than that. So if someone resets the password through the email link, every previously-issued token stops working without needing a server-side blocklist.
 
-- Tests — at minimum a couple of supertest-style end-to-end happy paths against signup/login/post-create.
-- HMR with the Vite dev server (right now dev mode is `vite build --watch` + `node app.js`, which is fine but not snappy).
-- Markdown for post bodies (currently plain text rendered with `whitespace-pre-line`).
-- Refresh-token rotation: a short-lived access cookie + a long-lived refresh cookie, with rotation on each refresh.
-- Rate-limit on `/auth/forgot-password` and `/auth/resend-verification` to make abuse less attractive.
-- A small admin endpoint for hard-deleting old soft-deleted posts.
+**Email verification is non-blocking.** A freshly-signed-up account is logged in immediately and can browse and write posts. A small yellow banner sits at the top of every page asking them to verify, with a Resend button. The verification email is fired off without `await` — if the SMTP relay is down, that's logged as a warning but signup still succeeds. The reset and verification links are also printed to the sails console so the flows can be exercised without an inbox.
+
+**Soft delete kept explicit.** Posts have a `deletedAt` column instead of a real DELETE. Every list/get controller filters `deletedAt: null` directly — I'd rather see that filter in the controller than have it hidden in some scope/lifecycle hook.
+
+**Vite, not Grunt.** The default Sails template ships a Grunt asset pipeline that's been retired in the wider JS ecosystem for years. I dropped `sails-hook-grunt` and the `tasks/` folder, and Vite emits a manifest into `assets/dist/`. A small middleware in `config/http.js` mounts that folder at `/dist/` and exposes `viteAsset(entry)` to EJS so the layout pulls in the right hashed file names automatically.
