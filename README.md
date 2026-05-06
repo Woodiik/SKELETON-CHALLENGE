@@ -6,8 +6,8 @@ A small blog application built for the test task. Vue 3 on the frontend, Sails.j
 
 - **Backend** — Sails.js 1.5, PostgreSQL via Waterline, Sails actions2 for controllers/helpers
 - **Frontend** — Vue 3 (Composition API + `<script setup>`), Vue Router, Pinia, Tailwind CSS v4, Vite 5
-- **Auth** — JWT (`jsonwebtoken`) + bcrypt (`bcryptjs`)
-- **Mail (password reset)** — Nodemailer; falls back to a one-off Ethereal account if no SMTP creds are provided
+- **Auth** — JWT in an httpOnly `SameSite=Lax` cookie (Bearer header still accepted as a fallback for API clients), bcrypt for hashing, `passwordChangedAt` invalidates tokens issued before a reset
+- **Mail** — Nodemailer with SMTP from env (SendGrid by default in `.env.example`); falls back to a one-off Ethereal account when SMTP creds are missing, so the flows always work locally
 
 ## Running locally
 
@@ -57,28 +57,35 @@ grace@example.com /  password123
 ## Project layout
 
 ```
-api/                  Sails controllers, helpers, models, policies
+api/
   controllers/
-    auth/             signup, login, forgot-password, reset-password
+    auth/             signup, login, logout, me, forgot-password, reset-password,
+                      check-reset-token, verify-email, check-verification-token,
+                      resend-verification
     posts/            list, get, create, update, destroy (soft delete)
     comments/         create
     pages/            home (renders first 10 posts via EJS)
-  helpers/            hash-password, check-password, jwt-sign, jwt-verify, send-reset-email
-  models/             User, Post, Comment, PasswordResetToken
+  helpers/            hash-password, check-password, jwt-sign, jwt-verify,
+                      get-mailer, send-reset-email, send-verification-email,
+                      issue-verification-token
+  models/             User, Post, Comment, PasswordResetToken, EmailVerificationToken
   policies/           is-authenticated
+  util/               auth-cookie (set/clear/read helpers for the JWT cookie)
 config/               sails config (routes, datastores, http, models, …)
 views/
   layouts/layout.ejs  shared layout, loads the Vite bundle from manifest
   pages/homepage.ejs  SSR home (first 10 posts)
-  pages/spa.ejs       shell for SPA routes (login/signup/posts/...)
+  pages/spa.ejs       shell for SPA routes (login/signup/posts/verify-email/...)
 assets/
   dist/               vite build output, gitignored
 frontend/             Vue 3 + Vite project with its own package.json
   src/
-    pages/            Login, Signup, ForgotPassword, ResetPassword, Post, PostEditor
-    components/       SiteHeader, PostCard, LoadMorePosts
-    stores/           auth (Pinia)
-    api/              axios client with JWT interceptor
+    pages/            Login, Signup, ForgotPassword, ResetPassword,
+                      VerifyEmail, Post, PostEditor
+    components/       SiteHeader, VerifyBanner, PostCard, LoadMorePosts,
+                      ConfirmDialog, ToastHost
+    stores/           auth, toasts (Pinia)
+    api/              axios client (cookies via withCredentials)
     router/           Vue Router (history mode)
     styles/app.css    Tailwind entry + small set of `@apply` utility classes
 ```
@@ -105,10 +112,16 @@ All endpoints live under `/api/v1`. JSON in, JSON out. Auth uses `Authorization:
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| POST | `/auth/signup` | – | `{ email, password, fullName }` → `{ token, user }` |
-| POST | `/auth/login` | – | `{ email, password }` → `{ token, user }` |
+| POST | `/auth/signup` | – | `{ email, password, fullName }` → `{ user }`; sets `sc_token` cookie; sends a verification email |
+| POST | `/auth/login` | – | `{ email, password }` → `{ user }`; sets `sc_token` cookie |
+| POST | `/auth/logout` | – | clears the `sc_token` cookie; idempotent |
+| GET  | `/auth/me` | yes | returns the authenticated user (handy after server-side state changes) |
 | POST | `/auth/forgot-password` | – | always 200 (no user enumeration) |
-| POST | `/auth/reset-password` | – | `{ token, password }` |
+| GET  | `/auth/check-reset-token` | – | pre-flight used by the reset page; 200 valid / 400 used-or-expired |
+| POST | `/auth/reset-password` | – | `{ token, password }`; bumps `passwordChangedAt` so older JWTs go stale |
+| GET  | `/auth/check-verification-token` | – | pre-flight used by the verify page |
+| POST | `/auth/verify-email` | – | `{ token }`; flips `verifiedAt` on the user |
+| POST | `/auth/resend-verification` | yes | re-issues a verification token + emails it; idempotent if already verified |
 | GET  | `/posts` | – | `?page=1&perPage=10` |
 | GET  | `/posts/:id` | – | post + comments (with authors) |
 | POST | `/posts` | yes | `{ title, body }` |
@@ -118,17 +131,21 @@ All endpoints live under `/api/v1`. JSON in, JSON out. Auth uses `Authorization:
 
 ## Assumptions
 
-- Password reset emails go through whatever SMTP relay you point the app at. The `.env.example` is set up for SendGrid; if `SMTP_USER`/`SMTP_PASS` are left empty the helper falls back to a throwaway [Ethereal](https://ethereal.email) account and logs the preview URL. Either way, the reset link is also printed to the server console so the flow can be exercised without ever opening an inbox.
-- Soft delete is a `deletedAt` timestamp. Listing endpoints filter `deletedAt: null` explicitly; this is kept visible in the controllers rather than hidden in the model.
-- The default Sails Grunt asset pipeline was dropped — Vite handles all frontend bundling. A small static middleware in `config/http.js` mounts `assets/dist/` at `/dist/` and exposes `viteAsset(entry)` to EJS so the layout can pick up the right hashed filenames from the Vite manifest.
-- Authentication is JWT. Sails' built-in session config is still present (Sails wants a session secret to lift) but no session-backed user state is used.
-- The dev seed runs on every lift if the DB is empty. In production it's a no-op.
-- Editing/deleting comments is not part of the task and isn't implemented. Only post-level edit/soft-delete (author-scoped).
+- **Auth cookie.** The JWT lives in an httpOnly `SameSite=Lax` cookie (`sc_token`). JS can't read it, so an XSS leak can't exfiltrate the token, and `SameSite=Lax` blocks cross-site POST/PATCH/DELETE — basic CSRF protection without a separate token. The `Authorization: Bearer …` header is still accepted as a fallback for API clients (Postman, curl).
+- **JWT invalidation.** `User.passwordChangedAt` is bumped on every password reset. Tokens issued before that timestamp are rejected by the auth policy, so a reset effectively kicks all existing sessions.
+- **Email verification** is non-blocking: a freshly-signed-up account can still browse and write posts, but a top-of-page banner nudges them to verify until they do. The verification email is best-effort — failing to deliver it doesn't fail the signup.
+- **Mail relay.** `.env.example` is set up for SendGrid; with `SMTP_USER`/`SMTP_PASS` left empty, the helper falls back to a throwaway [Ethereal](https://ethereal.email) account and logs the preview URL. The reset/verification links are also printed to the server console so the flows can be exercised without ever opening an inbox.
+- **Soft delete** is a `deletedAt` timestamp. Listing endpoints filter `deletedAt: null` explicitly; this is kept visible in the controllers rather than hidden in the model.
+- **Asset pipeline.** The default Sails Grunt asset pipeline was dropped — Vite handles all frontend bundling. A small static middleware in `config/http.js` mounts `assets/dist/` at `/dist/` and exposes `viteAsset(entry)` to EJS so the layout can pick up the right hashed filenames from the Vite manifest.
+- **Sessions.** Sails' built-in session config is still present (Sails wants a session secret to lift) but no session-backed user state is used.
+- **Dev seed** runs on every lift if the DB is empty. In production it's a no-op. To skip it on demand, set `SC_SKIP_SEED=true`.
+- **Editing/deleting comments** is not part of the task and isn't implemented. Only post-level edit/soft-delete (author-scoped).
 
 ## What I'd do next, given more time
 
 - Tests — at minimum a couple of supertest-style end-to-end happy paths against signup/login/post-create.
 - HMR with the Vite dev server (right now dev mode is `vite build --watch` + `node app.js`, which is fine but not snappy).
 - Markdown for post bodies (currently plain text rendered with `whitespace-pre-line`).
-- Refresh-token rotation on the JWT side; the current TTL defaults to 7d.
+- Refresh-token rotation: a short-lived access cookie + a long-lived refresh cookie, with rotation on each refresh.
+- Rate-limit on `/auth/forgot-password` and `/auth/resend-verification` to make abuse less attractive.
 - A small admin endpoint for hard-deleting old soft-deleted posts.
