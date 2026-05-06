@@ -48,6 +48,11 @@ module.exports = {
       passwordHash
     }).fetch();
 
+    // Send the verification email out-of-band — failing to deliver shouldn't
+    // block signup; the user can hit Resend later if anything went wrong.
+    sails.helpers.issueVerificationToken({ user })
+      .catch((err) => sails.log.warn('[signup] failed to issue verification token:', err));
+
     const token = await sails.helpers.jwtSign(user.id);
 
     return { token, user };

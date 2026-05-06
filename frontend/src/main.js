@@ -3,6 +3,7 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
 import SiteHeader from './components/SiteHeader.vue';
+import VerifyBanner from './components/VerifyBanner.vue';
 import LoadMorePosts from './components/LoadMorePosts.vue';
 import router from './router';
 
@@ -15,6 +16,13 @@ if (headerEl) {
   const headerApp = createApp(SiteHeader);
   headerApp.use(pinia);
   headerApp.mount(headerEl);
+}
+
+const bannerEl = document.getElementById('verify-banner');
+if (bannerEl) {
+  const bannerApp = createApp(VerifyBanner);
+  bannerApp.use(pinia);
+  bannerApp.mount(bannerEl);
 }
 
 const appEl = document.getElementById('app');

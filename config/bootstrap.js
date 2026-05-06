@@ -63,17 +63,20 @@ module.exports.bootstrap = async function () {
   sails.log.info('[seed] empty database — creating sample users, posts and comments…');
 
   const passwordHash = await sails.helpers.hashPassword('password123');
+  const verifiedAt = Date.now();
 
   const ada = await User.create({
     email: 'ada@example.com',
     fullName: 'Ada Lovelace',
-    passwordHash
+    passwordHash,
+    verifiedAt
   }).fetch();
 
   const grace = await User.create({
     email: 'grace@example.com',
     fullName: 'Grace Hopper',
-    passwordHash
+    passwordHash,
+    verifiedAt
   }).fetch();
 
   const authors = [ada, grace];

@@ -8,6 +8,9 @@ module.exports.policies = {
 
   '*': true,
 
+  'auth/me':                  'is-authenticated',
+  'auth/resend-verification': 'is-authenticated',
+
   'posts/create':  'is-authenticated',
   'posts/update':  'is-authenticated',
   'posts/destroy': 'is-authenticated',

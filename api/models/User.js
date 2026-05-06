@@ -29,6 +29,12 @@ module.exports = {
       protect: true
     },
 
+    verifiedAt: {
+      type: 'number',
+      allowNull: true,
+      description: 'Timestamp when the user clicked the link in their verification email. Null until verified.'
+    },
+
     posts: {
       collection: 'post',
       via: 'author'
@@ -41,6 +47,11 @@ module.exports = {
 
     resetTokens: {
       collection: 'passwordresettoken',
+      via: 'user'
+    },
+
+    verificationTokens: {
+      collection: 'emailverificationtoken',
       via: 'user'
     }
 

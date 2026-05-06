@@ -6,6 +6,7 @@ const routes = [
   { path: '/signup',          name: 'signup',          component: () => import('@/pages/Signup.vue') },
   { path: '/forgot-password', name: 'forgot-password', component: () => import('@/pages/ForgotPassword.vue') },
   { path: '/reset-password',  name: 'reset-password',  component: () => import('@/pages/ResetPassword.vue') },
+  { path: '/verify-email',    name: 'verify-email',    component: () => import('@/pages/VerifyEmail.vue') },
 
   { path: '/posts/new',       name: 'post-new',  component: () => import('@/pages/PostEditor.vue'), meta: { requiresAuth: true } },
   { path: '/posts/:id/edit',  name: 'post-edit', component: () => import('@/pages/PostEditor.vue'), meta: { requiresAuth: true } },

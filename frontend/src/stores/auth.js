@@ -55,6 +55,25 @@ export const useAuthStore = defineStore('auth', {
       await api.get('/auth/check-reset-token', { params: { token } });
     },
 
+    async checkVerificationToken(token) {
+      await api.get('/auth/check-verification-token', { params: { token } });
+    },
+
+    async verifyEmail(token) {
+      await api.post('/auth/verify-email', { token });
+    },
+
+    async resendVerification() {
+      await api.post('/auth/resend-verification');
+    },
+
+    async refreshMe() {
+      const { data } = await api.get('/auth/me');
+      this.user = data;
+      writeUser(data);
+      return data;
+    },
+
     logout() {
       this._setSession({ token: null, user: null });
     },
