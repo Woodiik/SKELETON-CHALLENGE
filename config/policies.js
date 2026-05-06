@@ -10,6 +10,8 @@ module.exports.policies = {
 
   'posts/create':  'is-authenticated',
   'posts/update':  'is-authenticated',
-  'posts/destroy': 'is-authenticated'
+  'posts/destroy': 'is-authenticated',
+
+  'comments/create': 'is-authenticated'
 
 };

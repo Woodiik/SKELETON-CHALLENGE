@@ -17,8 +17,8 @@ module.exports.routes = {
   'GET /api/v1/posts/:id':     { action: 'posts/get' },
   'POST /api/v1/posts':        { action: 'posts/create' },
   'PATCH /api/v1/posts/:id':   { action: 'posts/update' },
-  'DELETE /api/v1/posts/:id':  { action: 'posts/destroy' }
+  'DELETE /api/v1/posts/:id':  { action: 'posts/destroy' },
 
-  // comments routes go in next to the comments controller
+  'POST /api/v1/posts/:postId/comments': { action: 'comments/create' }
 
 };
