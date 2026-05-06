@@ -7,6 +7,10 @@ import { fileURLToPath, URL } from 'node:url';
 // Sails serves it statically and the EJS layout reads `manifest.json`
 // to pick up the right hashed file names per build.
 export default defineConfig({
+  // Sails mounts the dist folder at `/dist/` (see config/http.js), so all
+  // generated asset URLs — including the dynamic-import preload paths Vite
+  // bakes into the JS — need that prefix.
+  base: '/dist/',
   plugins: [vue(), tailwind()],
   build: {
     outDir: '../assets/dist',
