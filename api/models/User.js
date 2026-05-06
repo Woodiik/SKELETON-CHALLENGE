@@ -35,6 +35,12 @@ module.exports = {
       description: 'Timestamp when the user clicked the link in their verification email. Null until verified.'
     },
 
+    passwordChangedAt: {
+      type: 'number',
+      defaultsTo: 0,
+      description: 'Tokens issued before this timestamp are considered stale and rejected by `is-authenticated`. Bumped on every password reset.'
+    },
+
     posts: {
       collection: 'post',
       via: 'author'

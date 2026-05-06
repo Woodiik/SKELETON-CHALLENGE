@@ -33,9 +33,13 @@ module.exports = {
     }
 
     const passwordHash = await sails.helpers.hashPassword(password);
+    const now = Date.now();
 
-    await User.update({ id: record.user }).set({ passwordHash });
-    await PasswordResetToken.update({ id: record.id }).set({ usedAt: Date.now() });
+    await User.update({ id: record.user }).set({
+      passwordHash,
+      passwordChangedAt: now
+    });
+    await PasswordResetToken.update({ id: record.id }).set({ usedAt: now });
 
     return { ok: true };
   }

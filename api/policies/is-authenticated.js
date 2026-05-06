@@ -29,6 +29,12 @@ module.exports = async function isAuthenticated(req, res, proceed) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 
+  // Tokens issued before the user's most recent password change are stale.
+  const issuedAtMs = (payload.iat || 0) * 1000;
+  if (user.passwordChangedAt && issuedAtMs < user.passwordChangedAt) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+
   req.me = user;
   return proceed();
 };
