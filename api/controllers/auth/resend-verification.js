@@ -15,7 +15,7 @@ module.exports = {
       return { ok: true, alreadyVerified: true };
     }
 
-    await sails.helpers.issueVerificationToken({ user: me });
+    await sails.helpers.issueVerificationToken.with({ user: me });
 
     return { ok: true };
   }
