@@ -2,9 +2,11 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/api/client';
+import { useToastsStore } from '@/stores/toasts';
 
 const route = useRoute();
 const router = useRouter();
+const toasts = useToastsStore();
 
 const editing = computed(() => !!route.params.id);
 const title = ref('');
@@ -33,9 +35,11 @@ async function submit() {
   try {
     if (editing.value) {
       await api.patch(`/posts/${route.params.id}`, { title: title.value, body: body.value });
+      toasts.show('Post updated.', { type: 'success' });
       router.push(`/posts/${route.params.id}`);
     } else {
       const { data } = await api.post('/posts', { title: title.value, body: body.value });
+      toasts.show('Post published.', { type: 'success' });
       router.push(`/posts/${data.id}`);
     }
   } catch (err) {

@@ -3,10 +3,13 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
+import { useToastsStore } from '@/stores/toasts';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const toasts = useToastsStore();
 
 const post = ref(null);
 const error = ref('');
@@ -14,6 +17,9 @@ const loading = ref(true);
 const commentBody = ref('');
 const commentError = ref('');
 const submittingComment = ref(false);
+
+const showDeleteDialog = ref(false);
+const deleting = ref(false);
 
 const isAuthor = computed(() => {
   return auth.user && post.value && auth.user.id === (post.value.author && post.value.author.id);
@@ -46,6 +52,7 @@ async function submitComment() {
     post.value.comments = post.value.comments || [];
     post.value.comments.push(data);
     commentBody.value = '';
+    toasts.show('Comment posted.', { type: 'success' });
   } catch (err) {
     commentError.value = err.response?.status === 401
       ? 'Sign in to comment.'
@@ -55,14 +62,20 @@ async function submitComment() {
   }
 }
 
-async function softDelete() {
-  // eslint-disable-next-line no-alert
-  if (!confirm('Delete this post? This cannot be undone from the UI.')) return;
+function askDelete() {
+  showDeleteDialog.value = true;
+}
+
+async function confirmDelete() {
+  deleting.value = true;
   try {
     await api.delete(`/posts/${post.value.id}`);
-    window.location.href = '/';
+    toasts.show('Post deleted.', { type: 'success' });
+    setTimeout(() => { window.location.href = '/'; }, 800);
   } catch (_err) {
-    error.value = 'Could not delete the post.';
+    toasts.show('Could not delete the post.', { type: 'error' });
+    deleting.value = false;
+    showDeleteDialog.value = false;
   }
 }
 
@@ -90,7 +103,7 @@ watch(() => route.params.id, load);
 
     <div v-if="isAuthor" class="flex gap-3">
       <button class="btn-ghost" @click="router.push(`/posts/${post.id}/edit`)">Edit</button>
-      <button class="btn-ghost text-red-600 hover:bg-red-50" @click="softDelete">Delete</button>
+      <button class="btn-ghost text-red-600 hover:bg-red-50" @click="askDelete">Delete</button>
     </div>
 
     <section>
@@ -120,4 +133,15 @@ watch(() => route.params.id, load);
       </p>
     </section>
   </article>
+
+  <ConfirmDialog
+    :open="showDeleteDialog"
+    title="Delete this post?"
+    message="This will hide it from the blog. You can't undo it from the UI."
+    confirm-text="Delete"
+    destructive
+    :busy="deleting"
+    @confirm="confirmDelete"
+    @cancel="showDeleteDialog = false"
+  />
 </template>

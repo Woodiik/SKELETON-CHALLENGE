@@ -5,6 +5,7 @@ import App from './App.vue';
 import SiteHeader from './components/SiteHeader.vue';
 import VerifyBanner from './components/VerifyBanner.vue';
 import LoadMorePosts from './components/LoadMorePosts.vue';
+import ToastHost from './components/ToastHost.vue';
 import router from './router';
 
 // Single Pinia instance shared across the multiple Vue roots on a page so
@@ -41,4 +42,11 @@ if (moreEl) {
   const app = createApp(LoadMorePosts, { startPage, pageSize });
   app.use(pinia);
   app.mount(moreEl);
+}
+
+const toastEl = document.getElementById('toast-host');
+if (toastEl) {
+  const toastApp = createApp(ToastHost);
+  toastApp.use(pinia);
+  toastApp.mount(toastEl);
 }
