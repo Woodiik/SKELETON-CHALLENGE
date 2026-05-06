@@ -1,9 +1,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import api from '@/api/client';
 
 const route = useRoute();
+const router = useRouter();
 
 const editing = computed(() => !!route.params.id);
 const title = ref('');
@@ -32,10 +33,10 @@ async function submit() {
   try {
     if (editing.value) {
       await api.patch(`/posts/${route.params.id}`, { title: title.value, body: body.value });
-      window.location.href = `/posts/${route.params.id}`;
+      router.push(`/posts/${route.params.id}`);
     } else {
       const { data } = await api.post('/posts', { title: title.value, body: body.value });
-      window.location.href = `/posts/${data.id}`;
+      router.push(`/posts/${data.id}`);
     }
   } catch (err) {
     if (err.response?.status === 403) {
