@@ -6,7 +6,7 @@
 
 module.exports.routes = {
 
-  'GET /': { view: 'pages/homepage' },
+  'GET /': { action: 'pages/home' },
 
   'POST /api/v1/auth/signup':          { action: 'auth/signup' },
   'POST /api/v1/auth/login':           { action: 'auth/login' },
