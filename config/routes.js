@@ -6,8 +6,11 @@
 
 module.exports.routes = {
 
-  'GET /': { view: 'pages/homepage' }
+  'GET /': { view: 'pages/homepage' },
 
-  // SPA + API routes will be added as features land.
+  'POST /api/v1/auth/signup': { action: 'auth/signup' },
+  'POST /api/v1/auth/login':  { action: 'auth/login' }
+
+  // remaining auth + posts/comments routes land alongside their controllers
 
 };
