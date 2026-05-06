@@ -3,8 +3,8 @@ import { useAuthStore } from '@/stores/auth';
 
 const auth = useAuthStore();
 
-function logout() {
-  auth.logout();
+async function logout() {
+  await auth.logout();
   window.location.href = '/';
 }
 </script>

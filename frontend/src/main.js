@@ -7,10 +7,20 @@ import VerifyBanner from './components/VerifyBanner.vue';
 import LoadMorePosts from './components/LoadMorePosts.vue';
 import ToastHost from './components/ToastHost.vue';
 import router from './router';
+import { useAuthStore } from './stores/auth';
 
 // Single Pinia instance shared across the multiple Vue roots on a page so
 // auth state stays consistent between the header and the SPA / load-more apps.
 const pinia = createPinia();
+
+// Hook the auth store up to the global 401 listener and verify the cookie
+// is still valid in the background. If it isn't, the user state gets dropped
+// and the UI flips to the signed-out view.
+const auth = useAuthStore(pinia);
+auth.install();
+if (auth.user) {
+  auth.refreshMe().catch(() => { /* listener handles state cleanup */ });
+}
 
 const headerEl = document.getElementById('site-header');
 if (headerEl) {

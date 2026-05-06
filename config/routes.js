@@ -20,6 +20,7 @@ module.exports.routes = {
 
   'POST /api/v1/auth/signup':                 { action: 'auth/signup' },
   'POST /api/v1/auth/login':                  { action: 'auth/login' },
+  'POST /api/v1/auth/logout':                 { action: 'auth/logout' },
   'GET  /api/v1/auth/me':                     { action: 'auth/me' },
   'POST /api/v1/auth/forgot-password':        { action: 'auth/forgot-password' },
   'GET  /api/v1/auth/check-reset-token':      { action: 'auth/check-reset-token' },

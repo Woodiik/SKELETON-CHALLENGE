@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import api, { setToken, getToken } from '@/api/client';
+import api, { onUnauthorized } from '@/api/client';
 
 const USER_KEY = 'sc.user';
 
@@ -20,26 +20,40 @@ function writeUser(user) {
   }
 }
 
+// Wire a single global 401 listener so any pinia consumer's session goes
+// away the moment the server says the cookie is no longer valid.
+let unauthorizedHookInstalled = false;
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    user: readUser(),
-    token: getToken()
+    user: readUser()
   }),
 
   getters: {
-    isAuthenticated: (state) => !!state.token && !!state.user
+    isAuthenticated: (state) => !!state.user
   },
 
   actions: {
+    install() {
+      if (unauthorizedHookInstalled) return;
+      unauthorizedHookInstalled = true;
+      onUnauthorized(() => {
+        if (this.user) {
+          this.user = null;
+          writeUser(null);
+        }
+      });
+    },
+
     async signup(payload) {
       const { data } = await api.post('/auth/signup', payload);
-      this._setSession(data);
+      this._setUser(data.user);
       return data;
     },
 
     async login(payload) {
       const { data } = await api.post('/auth/login', payload);
-      this._setSession(data);
+      this._setUser(data.user);
       return data;
     },
 
@@ -69,19 +83,19 @@ export const useAuthStore = defineStore('auth', {
 
     async refreshMe() {
       const { data } = await api.get('/auth/me');
-      this.user = data;
-      writeUser(data);
+      this._setUser(data);
       return data;
     },
 
-    logout() {
-      this._setSession({ token: null, user: null });
+    async logout() {
+      try {
+        await api.post('/auth/logout');
+      } catch (_err) { /* clearing the cookie is best-effort */ }
+      this._setUser(null);
     },
 
-    _setSession({ token, user }) {
-      this.token = token || null;
+    _setUser(user) {
       this.user = user || null;
-      setToken(this.token);
       writeUser(this.user);
     }
   }

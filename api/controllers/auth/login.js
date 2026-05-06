@@ -1,3 +1,5 @@
+const { setAuthCookie } = require('../../util/auth-cookie');
+
 module.exports = {
 
   friendlyName: 'Login',
@@ -36,8 +38,9 @@ module.exports = {
     }
 
     const token = await sails.helpers.jwtSign(user.id);
+    setAuthCookie(this.req.res, token);
 
-    return { token, user };
+    return { user };
   }
 
 };

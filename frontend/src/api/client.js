@@ -1,39 +1,30 @@
 import axios from 'axios';
 
-const TOKEN_KEY = 'sc.token';
-
-export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-export function setToken(token) {
-  if (token) {
-    localStorage.setItem(TOKEN_KEY, token);
-  } else {
-    localStorage.removeItem(TOKEN_KEY);
-  }
-}
-
+// `withCredentials` makes the browser ship cookies with same-origin requests.
+// The auth flow lives on an httpOnly cookie that JS can't read — axios doesn't
+// have to know the token at all, the browser handles it.
 const api = axios.create({
   baseURL: '/api/v1',
-  headers: { 'Content-Type': 'application/json' }
+  headers: { 'Content-Type': 'application/json' },
+  withCredentials: true
 });
 
-api.interceptors.request.use((config) => {
-  const token = getToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// On 401 the cookie is missing or stale. Notify whoever is interested
+// (currently the auth store) so the UI can drop the cached user object.
+const listeners = new Set();
 
-// On 401 the token is either missing or stale — clear it so the UI reflects the
-// signed-out state. A higher level (router/store) decides whether to redirect.
+export function onUnauthorized(handler) {
+  listeners.add(handler);
+  return () => listeners.delete(handler);
+}
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      setToken(null);
+      for (const handler of listeners) {
+        try { handler(); } catch (_) { /* swallow */ }
+      }
     }
     return Promise.reject(error);
   }

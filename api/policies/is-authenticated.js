@@ -1,22 +1,26 @@
 /**
  * is-authenticated
  *
- * Reads the Bearer token from the Authorization header, verifies it,
- * loads the user and pins it to `req.me`. Anything missing or invalid
- * → 401 with no further detail.
+ * Reads the JWT from the auth cookie (preferred) or the Authorization
+ * header (fallback for API clients), verifies it, loads the user, and
+ * pins it to `req.me`. Anything missing or invalid → 401.
  */
 
+const { readAuthCookie } = require('../util/auth-cookie');
+
 module.exports = async function isAuthenticated(req, res, proceed) {
-  const header = req.headers.authorization || '';
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  if (!match) {
+  const cookieToken = readAuthCookie(req);
+  const headerMatch = (req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
+  const token = cookieToken || (headerMatch ? headerMatch[1] : null);
+
+  if (!token) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 
   let payload;
   try {
-    payload = await sails.helpers.jwtVerify(match[1]);
-  } catch (err) {
+    payload = await sails.helpers.jwtVerify(token);
+  } catch (_err) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 

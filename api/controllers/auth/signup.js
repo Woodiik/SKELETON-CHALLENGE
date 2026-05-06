@@ -1,3 +1,5 @@
+const { setAuthCookie } = require('../../util/auth-cookie');
+
 module.exports = {
 
   friendlyName: 'Signup',
@@ -54,8 +56,9 @@ module.exports = {
       .catch((err) => sails.log.warn('[signup] failed to issue verification token:', err));
 
     const token = await sails.helpers.jwtSign(user.id);
+    setAuthCookie(this.req.res, token);
 
-    return { token, user };
+    return { user };
   }
 
 };
