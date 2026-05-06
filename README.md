@@ -1,19 +1,22 @@
 # Skeleton Challenge — Vue + Sails.js blog
 
-Test task: a blog with JWT auth, CRUD posts (with comments and soft delete). The home page is server-rendered in EJS for the first 10 posts; everything after that is fetched and rendered by a Vue component.
+A small blog application built for the test task. Vue 3 on the frontend, Sails.js + PostgreSQL on the backend, JWT auth, posts with comments and soft delete. The home page renders the first 10 posts on the server (EJS); anything past that is fetched and rendered by a Vue component.
 
 ## Stack
 
-- **Backend**: Sails.js 1.5, PostgreSQL via Waterline
-- **Frontend**: Vue 3 (Composition API + `<script setup>`), Vue Router, Pinia, Tailwind CSS, Vite
-- **Auth**: JWT, bcrypt for password hashing
-- **Mail (password reset)**: Nodemailer + Ethereal SMTP (dev only — see assumptions)
+- **Backend** — Sails.js 1.5, PostgreSQL via Waterline, Sails actions2 for controllers/helpers
+- **Frontend** — Vue 3 (Composition API + `<script setup>`), Vue Router, Pinia, Tailwind CSS v4, Vite 5
+- **Auth** — JWT (`jsonwebtoken`) + bcrypt (`bcryptjs`)
+- **Mail (password reset)** — Nodemailer; falls back to a one-off Ethereal account if no SMTP creds are provided
 
 ## Running locally
 
 Requires Node 22+ and a running PostgreSQL.
 
 ```bash
+# create the database (one-off, name can match what's in DATABASE_URL)
+createdb skeleton_challenge
+
 # install deps (root + frontend)
 npm install
 npm --prefix frontend install
@@ -21,38 +24,103 @@ npm --prefix frontend install
 # copy the env template and edit values
 cp .env.example .env
 
-# build the frontend bundle
+# build the frontend bundle (outputs into assets/dist with a manifest)
 npm run build
 
 # start sails
 npm run dev
 ```
 
-App will be on `http://localhost:1337`.
+Then open `http://localhost:1337`.
 
-For frontend with auto-rebuild during development, in a second terminal:
+On the first lift the dev seed (`config/bootstrap.js`) creates two users and ~12 posts so the home page has content. To skip the seed, set `SC_SKIP_SEED=true`. To wipe and reseed, drop and recreate the database.
+
+### Frontend during development
+
+For frontend with auto-rebuild while you edit Vue files, run this in a second terminal — it keeps `assets/dist/` fresh:
 
 ```bash
 npm --prefix frontend run build -- --watch
 ```
 
-## Layout
+Sails picks up the new bundle on each request through the manifest, no Sails restart needed.
+
+### Demo credentials
+
+After the seed runs:
 
 ```
-api/                 sails controllers, helpers, models, policies
-config/              sails config (routes, datastores, middleware, http)
-views/               EJS layout + server-rendered pages
-assets/              static assets; assets/dist/ is filled by Vite (gitignored)
-frontend/            Vue + Vite project (own package.json)
+ada@example.com   /  password123
+grace@example.com /  password123
 ```
 
-The Vite build emits a manifest into `assets/dist/.vite/manifest.json`. A small middleware in `config/http.js` exposes `viteAsset(entry)` to EJS, which injects the right hashed `<script>` and `<link>` tags into the layout.
+## Project layout
 
-## Status
+```
+api/                  Sails controllers, helpers, models, policies
+  controllers/
+    auth/             signup, login, forgot-password, reset-password
+    posts/            list, get, create, update, destroy (soft delete)
+    comments/         create
+    pages/            home (renders first 10 posts via EJS)
+  helpers/            hash-password, check-password, jwt-sign, jwt-verify, send-reset-email
+  models/             User, Post, Comment, PasswordResetToken
+  policies/           is-authenticated
+config/               sails config (routes, datastores, http, models, …)
+views/
+  layouts/layout.ejs  shared layout, loads the Vite bundle from manifest
+  pages/homepage.ejs  SSR home (first 10 posts)
+  pages/spa.ejs       shell for SPA routes (login/signup/posts/...)
+assets/
+  dist/               vite build output, gitignored
+frontend/             Vue 3 + Vite project with its own package.json
+  src/
+    pages/            Login, Signup, ForgotPassword, ResetPassword, Post, PostEditor
+    components/       SiteHeader, PostCard, LoadMorePosts
+    stores/           auth (Pinia)
+    api/              axios client with JWT interceptor
+    router/           Vue Router (history mode)
+    styles/app.css    Tailwind entry + small set of `@apply` utility classes
+```
 
-WIP. Scaffolding (Sails + Vite + Vue + Tailwind, Vite-driven asset pipeline) is in. Up next: PostgreSQL models, the auth and posts APIs, the SSR home page and the Vue pages. Final polish and assumptions land here as decisions get made.
+## How SSR + CSR fit together
+
+`GET /` is the only fully server-rendered page. Sails fetches the first 10 posts and renders them inline through `views/pages/homepage.ejs`. The same page contains a `<div id="more-posts" data-start-page="2">` placeholder; the Vue `LoadMorePosts` component mounts there and pulls subsequent pages from `/api/v1/posts?page=2`.
+
+All other UI routes (`/login`, `/signup`, `/posts/:id`, `/posts/new`, `/posts/:id/edit`, …) are SPA routes — Sails serves a small shell (`views/pages/spa.ejs`) and Vue Router takes over.
+
+The site header is a separate Vue mini-app mounted on every page so the auth state stays consistent regardless of how the page got rendered.
+
+## API
+
+All endpoints live under `/api/v1`. JSON in, JSON out. Auth uses `Authorization: Bearer <jwt>`.
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | `/auth/signup` | – | `{ email, password, fullName }` → `{ token, user }` |
+| POST | `/auth/login` | – | `{ email, password }` → `{ token, user }` |
+| POST | `/auth/forgot-password` | – | always 200 (no user enumeration) |
+| POST | `/auth/reset-password` | – | `{ token, password }` |
+| GET  | `/posts` | – | `?page=1&perPage=10` |
+| GET  | `/posts/:id` | – | post + comments (with authors) |
+| POST | `/posts` | yes | `{ title, body }` |
+| PATCH | `/posts/:id` | yes (author) | `{ title?, body? }` |
+| DELETE | `/posts/:id` | yes (author) | soft delete (sets `deletedAt`) |
+| POST | `/posts/:postId/comments` | yes | `{ body }` |
 
 ## Assumptions
 
-- Password reset emails go through [Ethereal](https://ethereal.email) so the flow can be exercised without real SMTP credentials. The reset link is also logged to the server console for convenience during review.
-- `assets/dist/` (Vite output) is regenerated by `npm run build` and is not committed.
+- Password reset emails go through [Ethereal](https://ethereal.email). If `SMTP_USER`/`SMTP_PASS` aren't set, the helper spins up a throwaway Ethereal account on the first send and logs the credentials so they can be reused. The reset link is also printed to the server console — a reviewer can exercise the flow without ever opening an inbox.
+- Soft delete is a `deletedAt` timestamp. Listing endpoints filter `deletedAt: null` explicitly; this is kept visible in the controllers rather than hidden in the model.
+- The default Sails Grunt asset pipeline was dropped — Vite handles all frontend bundling. A small static middleware in `config/http.js` mounts `assets/dist/` at `/dist/` and exposes `viteAsset(entry)` to EJS so the layout can pick up the right hashed filenames from the Vite manifest.
+- Authentication is JWT. Sails' built-in session config is still present (Sails wants a session secret to lift) but no session-backed user state is used.
+- The dev seed runs on every lift if the DB is empty. In production it's a no-op.
+- Editing/deleting comments is not part of the task and isn't implemented. Only post-level edit/soft-delete (author-scoped).
+
+## What I'd do next, given more time
+
+- Tests — at minimum a couple of supertest-style end-to-end happy paths against signup/login/post-create.
+- HMR with the Vite dev server (right now dev mode is `vite build --watch` + `node app.js`, which is fine but not snappy).
+- Markdown for post bodies (currently plain text rendered with `whitespace-pre-line`).
+- Refresh-token rotation on the JWT side; the current TTL defaults to 7d.
+- A small admin endpoint for hard-deleting old soft-deleted posts.
