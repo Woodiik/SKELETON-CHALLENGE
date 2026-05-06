@@ -1,5 +1,10 @@
 @import 'tailwindcss';
 
+/* Tailwind v4 only scans files under the Vite project root by default.
+   Our EJS layout/pages live in ../../../views, so we register them explicitly
+   so utility classes used there (max-w-*, justify-between, …) get emitted. */
+@source "../../../views/**/*.ejs";
+
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
 }

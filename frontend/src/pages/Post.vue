@@ -67,7 +67,7 @@ async function softDelete() {
 }
 
 function formatDate(ts) {
-  return new Date(ts).toLocaleString();
+  return new Date(ts).toLocaleString('en-US');
 }
 
 onMounted(load);

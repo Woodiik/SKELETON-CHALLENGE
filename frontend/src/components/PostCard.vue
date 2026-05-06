@@ -9,7 +9,7 @@ function excerpt(body) {
 }
 
 function formatDate(ts) {
-  return new Date(ts).toLocaleDateString();
+  return new Date(ts).toLocaleDateString('en-US');
 }
 </script>
 
