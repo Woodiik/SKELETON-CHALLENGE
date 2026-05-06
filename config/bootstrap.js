@@ -80,18 +80,19 @@ module.exports.bootstrap = async function () {
   }).fetch();
 
   const authors = [ada, grace];
-  const createdPosts = [];
-
-  for (let i = 0; i < SAMPLE_POSTS.length; i++) {
-    const post = await Post.create({
+  // Iterate the array tail-first so the post listed first in source code
+  // ("Welcome to the Skeleton blog") ends up with the most recent createdAt
+  // and naturally lands at the top of the home feed (which sorts DESC).
+  const createdByIndex = new Array(SAMPLE_POSTS.length);
+  for (let i = SAMPLE_POSTS.length - 1; i >= 0; i--) {
+    createdByIndex[i] = await Post.create({
       ...SAMPLE_POSTS[i],
       author: authors[i % authors.length].id
     }).fetch();
-    createdPosts.push(post);
   }
 
   for (const c of SAMPLE_COMMENTS) {
-    const target = createdPosts[c.postIndex];
+    const target = createdByIndex[c.postIndex];
     if (!target) continue;
     await Comment.create({
       body: c.body,
@@ -100,6 +101,6 @@ module.exports.bootstrap = async function () {
     });
   }
 
-  sails.log.info(`[seed] done — ${createdPosts.length} posts, ${SAMPLE_COMMENTS.length} comments. Login: ada@example.com / password123`);
+  sails.log.info(`[seed] done — ${createdByIndex.length} posts, ${SAMPLE_COMMENTS.length} comments. Login: ada@example.com / password123`);
 
 };
