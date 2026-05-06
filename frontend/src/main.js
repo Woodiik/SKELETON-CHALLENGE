@@ -3,6 +3,7 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
 import SiteHeader from './components/SiteHeader.vue';
+import LoadMorePosts from './components/LoadMorePosts.vue';
 import router from './router';
 
 // Single Pinia instance shared across the multiple Vue roots on a page so
@@ -22,4 +23,14 @@ if (appEl) {
   app.use(pinia);
   app.use(router);
   app.mount(appEl);
+}
+
+// Home page only — present when the SSR'd first 10 posts don't cover everything.
+const moreEl = document.getElementById('more-posts');
+if (moreEl) {
+  const startPage = parseInt(moreEl.dataset.startPage || '2', 10);
+  const pageSize = parseInt(moreEl.dataset.pageSize || '10', 10);
+  const app = createApp(LoadMorePosts, { startPage, pageSize });
+  app.use(pinia);
+  app.mount(moreEl);
 }
