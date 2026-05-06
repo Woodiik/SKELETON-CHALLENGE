@@ -7,6 +7,11 @@
 
 module.exports = {
 
+  // Postgres treats `user` as a reserved word, and sails-postgresql's
+  // `migrate: 'alter'` strategy can drop the table and fail to re-create it
+  // because of unquoted DDL. Naming the actual table `users` sidesteps that.
+  tableName: 'users',
+
   attributes: {
 
     email: {
