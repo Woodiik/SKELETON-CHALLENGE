@@ -6,9 +6,10 @@
 
 module.exports.policies = {
 
-  '*': true
+  '*': true,
 
-  // Per-action overrides land here as protected endpoints are added,
-  // e.g. 'posts/create': 'is-authenticated'.
+  'posts/create':  'is-authenticated',
+  'posts/update':  'is-authenticated',
+  'posts/destroy': 'is-authenticated'
 
 };
